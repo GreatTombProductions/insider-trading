@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insider Trading Tracker — Who's Buying and Selling Their Own Stock?</title>
+<meta name="description" content="Search any public company to see insider buying and selling activity from SEC Form 4 filings. Open market purchases, sales, and notable transactions.">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a25;
+  --border: #2a2a3a;
+  --text: #e0e0e8;
+  --text2: #8888a0;
+  --accent: #6c8cff;
+  --green: #4caf78;
+  --red: #e05555;
+  --orange: #e09040;
+  --yellow: #d4c04a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header { text-align: center; padding: 40px 0 20px; }
+.header h1 { font-size: 1.6em; margin-bottom: 8px; }
+.header .subtitle { color: var(--text2); font-size: 0.95em; max-width: 600px; margin: 0 auto; }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+  margin: 20px 0; padding: 12px; background: var(--surface); border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.stat { text-align: center; padding: 4px 16px; }
+.stat .val { font-size: 1.3em; font-weight: 700; }
+.stat .lbl { font-size: 0.75em; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat.buy .val { color: var(--green); }
+.stat.sell .val { color: var(--red); }
+
+/* Search */
+.search-section { margin: 24px 0; }
+.search-box {
+  display: flex; gap: 8px; margin-bottom: 12px;
+}
+.search-box input {
+  flex: 1; padding: 12px 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 1em;
+  outline: none; transition: border-color 0.2s;
+}
+.search-box input:focus { border-color: var(--accent); }
+.search-box input::placeholder { color: var(--text2); }
+.search-toggle {
+  display: flex; gap: 4px;
+}
+.search-toggle button {
+  padding: 6px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text2); cursor: pointer; font-size: 0.85em;
+  transition: all 0.2s;
+}
+.search-toggle button.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.search-toggle button:hover:not(.active) { border-color: var(--text2); }
+
+/* Results */
+.results { margin-top: 16px; }
+.result-item {
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 8px; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.result-item:hover { border-color: var(--accent); }
+.result-header {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px;
+}
+.result-name { font-weight: 600; }
+.result-ticker { color: var(--accent); font-weight: 700; margin-right: 8px; }
+.result-activity {
+  display: flex; gap: 16px; font-size: 0.85em;
+}
+.result-activity .buy { color: var(--green); }
+.result-activity .sell { color: var(--red); }
+.result-date { color: var(--text2); font-size: 0.8em; }
+.result-count { color: var(--text2); font-size: 0.85em; margin-top: 8px; }
+
+/* Detail view */
+.detail-view { display: none; }
+.detail-view.active { display: block; }
+.back-btn {
+  background: none; border: 1px solid var(--border); color: var(--text2);
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-bottom: 16px;
+  font-size: 0.9em;
+}
+.back-btn:hover { border-color: var(--text); color: var(--text); }
+
+.detail-header {
+  padding: 20px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 16px;
+}
+.detail-header h2 { margin-bottom: 4px; }
+.detail-header .ticker-big { color: var(--accent); font-size: 1.4em; font-weight: 700; }
+.detail-header .date-range { color: var(--text2); font-size: 0.85em; margin-top: 8px; }
+
+.detail-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.detail-stat {
+  padding: 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; text-align: center;
+}
+.detail-stat .val { font-size: 1.5em; font-weight: 700; }
+.detail-stat .lbl { font-size: 0.8em; color: var(--text2); margin-top: 4px; }
+
+/* Signal indicator */
+.signal {
+  display: inline-block; padding: 4px 10px; border-radius: 4px;
+  font-size: 0.8em; font-weight: 600; margin-top: 8px;
+}
+.signal.buying { background: rgba(76, 175, 120, 0.15); color: var(--green); }
+.signal.selling { background: rgba(224, 85, 85, 0.15); color: var(--red); }
+.signal.mixed { background: rgba(212, 192, 74, 0.15); color: var(--yellow); }
+.signal.neutral { background: rgba(136, 136, 160, 0.15); color: var(--text2); }
+
+/* Tables */
+.section-title {
+  font-size: 1.1em; font-weight: 600; margin: 24px 0 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+table {
+  width: 100%; border-collapse: collapse; font-size: 0.85em;
+}
+th {
+  text-align: left; padding: 8px 12px; background: var(--surface2);
+  color: var(--text2); font-weight: 600; font-size: 0.8em;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+tr:hover td { background: var(--surface); }
+.buy-text { color: var(--green); }
+.sell-text { color: var(--red); }
+.other-text { color: var(--text2); }
+
+/* Notable trades */
+.notable-trade {
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; margin-bottom: 6px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 4px;
+}
+.notable-trade .trade-info { font-size: 0.9em; }
+.notable-trade .trade-value { font-weight: 700; font-size: 1em; }
+
+/* Leaderboard */
+.leaderboard {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px; margin-top: 16px;
+}
+.leaderboard-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px;
+}
+.leaderboard-section h3 {
+  font-size: 0.95em; color: var(--text2); margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.lb-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-size: 0.9em;
+}
+.lb-item:last-child { border-bottom: none; }
+.lb-item:hover { color: var(--accent); }
+.lb-item .lb-rank { color: var(--text2); width: 28px; }
+.lb-item .lb-name { flex: 1; }
+.lb-item .lb-ticker { color: var(--accent); margin: 0 8px; font-weight: 600; }
+
+/* Loading */
+.loading {
+  text-align: center; padding: 40px; color: var(--text2);
+}
+.loading::after {
+  content: ''; display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--border); border-top: 2px solid var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  margin-left: 8px; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Footer */
+.footer {
+  text-align: center; padding: 40px 0 20px;
+  color: var(--text2); font-size: 0.8em;
+}
+.footer a { color: var(--accent); text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .container { padding: 12px; }
+  .header h1 { font-size: 1.3em; }
+  .stats-bar { flex-direction: column; align-items: center; }
+  .detail-stats { grid-template-columns: 1fr 1fr; }
+  .leaderboard { grid-template-columns: 1fr; }
+  table { font-size: 0.8em; }
+  td, th { padding: 6px 8px; }
+}
+
+/* Disclaimer */
+.disclaimer {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px; margin: 16px 0;
+  font-size: 0.8em; color: var(--text2);
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Insider Trading Tracker</h1>
+    <p class="subtitle">
+      Who's buying and selling their own company's stock?
+      Search any public company to see insider trading activity from SEC Form 4 filings.
+    </p>
+  </div>
+
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat"><div class="val" id="stat-companies">—</div><div class="lbl">Companies</div></div>
+    <div class="stat buy"><div class="val" id="stat-buys">—</div><div class="lbl">Insider Purchases</div></div>
+    <div class="stat sell"><div class="val" id="stat-sells">—</div><div class="lbl">Insider Sales</div></div>
+    <div class="stat"><div class="val" id="stat-filings">—</div><div class="lbl">Form 4 Filings</div></div>
+  </div>
+
+  <!-- Search view -->
+  <div id="search-view">
+    <div class="search-section">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search by company name or ticker symbol..." autocomplete="off">
+      </div>
+      <div class="search-toggle">
+        <button class="active" data-mode="name">Company Name</button>
+        <button data-mode="ticker">Ticker</button>
+      </div>
+    </div>
+    <div id="results" class="results"></div>
+    <div id="leaderboard" class="leaderboard"></div>
+  </div>
+
+  <!-- Detail view -->
+  <div id="detail-view" class="detail-view">
+    <button class="back-btn" onclick="showSearch()">&larr; Back to search</button>
+    <div id="detail-content"></div>
+  </div>
+
+  <div class="disclaimer">
+    Data from SEC EDGAR Form 4 filings (public domain). Covers the top 500 companies by market cap, last 12 months.
+    This is not investment advice. Insider transactions include routine compensation events (option exercises, RSU vesting) alongside open market purchases and sales.
+    Open market purchases (P) and sales (S) are the most informative signals.
+  </div>
+
+  <div class="footer">
+    Data source: <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4" target="_blank">SEC EDGAR Form 4 Filings</a><br>
+    Part of <a href="https://greattombproductions.github.io/quest-board/" target="_blank">Quest Board</a> — open-source tools that dissolve information asymmetries.
+  </div>
+</div>
+
+<script>
+const BASE = 'data';
+let searchMode = 'name';
+let meta = null;
+let indexCache = {};
+
+// Format helpers
+function fmtMoney(n) {
+  if (n >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return '$' + n.toFixed(0);
+}
+
+function fmtShares(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+  return n.toLocaleString();
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const parts = d.split('-');
+  if (parts.length !== 3) return d;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(parts[1])-1] + ' ' + parseInt(parts[2]) + ', ' + parts[0];
+}
+
+// Load meta
+async function loadMeta() {
+  try {
+    const r = await fetch(BASE + '/meta.json');
+    meta = await r.json();
+    document.getElementById('stat-companies').textContent = meta.companies.toLocaleString();
+    document.getElementById('stat-buys').textContent = fmtMoney(meta.total_buy_value);
+    document.getElementById('stat-sells').textContent = fmtMoney(meta.total_sell_value);
+    document.getElementById('stat-filings').textContent = meta.total_filings.toLocaleString();
+    renderLeaderboard();
+  } catch (e) {
+    console.error('Failed to load meta:', e);
+  }
+}
+
+// Leaderboard
+function renderLeaderboard() {
+  if (!meta) return;
+  const el = document.getElementById('leaderboard');
+  el.innerHTML = `
+    <div class="leaderboard-section">
+      <h3>Top Insider Buyers (by $)</h3>
+      ${meta.top_buyers.slice(0, 10).map((c, i) => `
+        <div class="lb-item" onclick="loadDetail('${c.ticker}','${c.shard}')">
+          <span class="lb-rank">${i+1}.</span>
+          <span class="lb-name">${esc(c.name)}</span>
+          <span class="lb-ticker">${esc(c.ticker)}</span>
+          <span class="buy-text">${fmtMoney(c.buy_value)}</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="leaderboard-section">
+      <h3>Top Insider Sellers (by $)</h3>
+      ${meta.top_sellers.slice(0, 10).map((c, i) => `
+        <div class="lb-item" onclick="loadDetail('${c.ticker}','${c.shard}')">
+          <span class="lb-rank">${i+1}.</span>
+          <span class="lb-name">${esc(c.name)}</span>
+          <span class="lb-ticker">${esc(c.ticker)}</span>
+          <span class="sell-text">${fmtMoney(c.sell_value)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Search
+async function search(query) {
+  if (!query || query.length < 1) {
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('leaderboard').style.display = '';
+    return;
+  }
+  document.getElementById('leaderboard').style.display = 'none';
+
+  const first = query[0].toUpperCase();
+  const letter = /[A-Z]/.test(first) ? first.toLowerCase() : '_';
+  const prefix = searchMode === 'ticker' ? 'ticker' : 'name';
+  const cacheKey = prefix + '_' + letter;
+
+  if (!indexCache[cacheKey]) {
+    try {
+      const r = await fetch(`${BASE}/i/${prefix}_${letter}.json`);
+      if (!r.ok) { indexCache[cacheKey] = []; }
+      else { indexCache[cacheKey] = await r.json(); }
+    } catch { indexCache[cacheKey] = []; }
+  }
+
+  const entries = indexCache[cacheKey];
+  const q = query.toUpperCase();
+  const matches = entries.filter(e => {
+    if (searchMode === 'ticker') return e.ticker.toUpperCase().includes(q);
+    return e.name.toUpperCase().includes(q) || e.ticker.toUpperCase().includes(q);
+  }).slice(0, 30);
+
+  renderResults(matches);
+}
+
+function renderResults(matches) {
+  const el = document.getElementById('results');
+  if (matches.length === 0) {
+    el.innerHTML = '<div class="result-count">No matches found. Try a different search.</div>';
+    return;
+  }
+
+  el.innerHTML = matches.map(m => `
+    <div class="result-item" onclick="loadDetail('${esc(m.ticker)}','${m.shard || ''}')">
+      <div class="result-header">
+        <div>
+          <span class="result-ticker">${esc(m.ticker)}</span>
+          <span class="result-name">${esc(m.name)}</span>
+        </div>
+        <div class="result-activity">
+          ${m.buy_value > 0 ? `<span class="buy">Bought: ${fmtMoney(m.buy_value)}</span>` : ''}
+          ${m.sell_value > 0 ? `<span class="sell">Sold: ${fmtMoney(m.sell_value)}</span>` : ''}
+        </div>
+      </div>
+      <div class="result-date">
+        ${m.insiders} insider${m.insiders !== 1 ? 's' : ''} &middot; Last activity: ${fmtDate(m.latest)}
+      </div>
+    </div>
+  `).join('');
+}
+
+// Shard map cache (ticker -> shard key, populated from search index)
+let shardMap = {};
+
+// Resolve shard for a ticker by searching the index
+async function resolveShardForTicker(ticker) {
+  const key = ticker.toUpperCase();
+  if (shardMap[key]) return shardMap[key];
+  // Try to find it in the ticker index
+  const first = key[0].toLowerCase();
+  const cacheKey = 'ticker_' + first;
+  if (!indexCache[cacheKey]) {
+    try {
+      const r = await fetch(`${BASE}/i/ticker_${first}.json`);
+      if (r.ok) indexCache[cacheKey] = await r.json();
+      else indexCache[cacheKey] = [];
+    } catch { indexCache[cacheKey] = []; }
+  }
+  const found = indexCache[cacheKey].find(e => e.ticker.toUpperCase() === key);
+  if (found && found.shard) {
+    shardMap[key] = found.shard;
+    return found.shard;
+  }
+  return null;
+}
+
+// Load detail from leaderboard (need to resolve shard)
+async function loadDetailByTicker(ticker) {
+  const shard = await resolveShardForTicker(ticker);
+  if (shard) loadDetail(ticker, shard);
+}
+
+// Detail view
+async function loadDetail(ticker, shard) {
+  const key = ticker.toUpperCase();
+  if (!shard) shard = await resolveShardForTicker(key);
+
+  document.getElementById('search-view').style.display = 'none';
+  const dv = document.getElementById('detail-view');
+  dv.classList.add('active');
+  document.getElementById('detail-content').innerHTML = '<div class="loading">Loading detail</div>';
+
+  try {
+    const r = await fetch(`${BASE}/d/${shard}.json`);
+    const data = await r.json();
+    const detail = data[key];
+    if (!detail) {
+      document.getElementById('detail-content').innerHTML = '<p>Company not found in dataset.</p>';
+      return;
+    }
+    renderDetail(detail);
+  } catch (e) {
+    document.getElementById('detail-content').innerHTML = '<p>Error loading data. Please try again.</p>';
+  }
+
+  window.scrollTo(0, 0);
+  history.pushState({ticker: key}, '', '#' + key);
+}
+
+function renderDetail(d) {
+  // Determine signal
+  let signalClass = 'neutral', signalText = 'No open market activity';
+  if (d.total_buys > 0 || d.total_sells > 0) {
+    if (d.total_buys > 0 && d.total_sells === 0) {
+      signalClass = 'buying'; signalText = 'Net insider buying';
+    } else if (d.total_sells > 0 && d.total_buys === 0) {
+      signalClass = 'selling'; signalText = 'Net insider selling';
+    } else if (d.buy_sell_ratio > 1.5) {
+      signalClass = 'buying'; signalText = 'Net insider buying';
+    } else if (d.buy_sell_ratio < 0.5) {
+      signalClass = 'selling'; signalText = 'Net insider selling';
+    } else {
+      signalClass = 'mixed'; signalText = 'Mixed insider activity';
+    }
+  }
+
+  const el = document.getElementById('detail-content');
+  el.innerHTML = `
+    <div class="detail-header">
+      <span class="ticker-big">${esc(d.ticker)}</span>
+      <h2>${esc(d.name)}</h2>
+      <div class="date-range">
+        Data: ${fmtDate(d.date_range.earliest)} — ${fmtDate(d.date_range.latest)}
+        &middot; ${d.filing_count} Form 4 filings &middot; ${d.num_insiders} insiders
+      </div>
+      <span class="signal ${signalClass}">${signalText}</span>
+    </div>
+
+    <div class="detail-stats">
+      <div class="detail-stat">
+        <div class="val buy-text">${fmtMoney(d.total_buy_value)}</div>
+        <div class="lbl">Open Market Purchases</div>
+        <div class="lbl">${fmtShares(d.total_buy_shares)} shares, ${d.total_buys} transactions</div>
+      </div>
+      <div class="detail-stat">
+        <div class="val sell-text">${fmtMoney(d.total_sell_value)}</div>
+        <div class="lbl">Open Market Sales</div>
+        <div class="lbl">${fmtShares(d.total_sell_shares)} shares, ${d.total_sells} transactions</div>
+      </div>
+      <div class="detail-stat">
+        <div class="val">${d.buy_sell_ratio === 999 ? '∞' : d.buy_sell_ratio.toFixed(2)}</div>
+        <div class="lbl">Buy/Sell Ratio ($)</div>
+        <div class="lbl">${d.buy_sell_ratio > 1 ? 'More buying' : d.buy_sell_ratio < 1 ? 'More selling' : 'Balanced'}</div>
+      </div>
+    </div>
+
+    ${d.notable_trades && d.notable_trades.length > 0 ? `
+      <div class="section-title">Notable Trades (>$1M)</div>
+      ${d.notable_trades.map(t => `
+        <div class="notable-trade">
+          <div class="trade-info">
+            <strong>${esc(t.insider)}</strong> &middot; ${fmtDate(t.date)} &middot;
+            <span class="${t.code === 'P' ? 'buy-text' : 'sell-text'}">${t.type}</span>
+            ${fmtShares(t.shares)} shares @ $${t.price.toFixed(2)}
+          </div>
+          <div class="trade-value ${t.code === 'P' ? 'buy-text' : 'sell-text'}">${fmtMoney(t.value)}</div>
+        </div>
+      `).join('')}
+    ` : ''}
+
+    <div class="section-title">Insiders</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Role</th>
+          <th>Buys ($)</th>
+          <th>Sales ($)</th>
+          <th>Other</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${d.insiders.map(ins => `
+          <tr>
+            <td><strong>${esc(ins.name)}</strong></td>
+            <td style="color:var(--text2)">${esc(ins.role)}</td>
+            <td class="buy-text">${ins.buy_value > 0 ? fmtMoney(ins.buy_value) + ' (' + fmtShares(ins.buy_shares) + ' sh)' : '—'}</td>
+            <td class="sell-text">${ins.sell_value > 0 ? fmtMoney(ins.sell_value) + ' (' + fmtShares(ins.sell_shares) + ' sh)' : '—'}</td>
+            <td class="other-text">${ins.other_tx > 0 ? ins.other_tx + ' tx' : '—'}</td>
+          </tr>
+          ${ins.recent_trades && ins.recent_trades.length > 0 ? `
+            <tr>
+              <td colspan="5" style="padding:0 12px 8px 24px">
+                <details>
+                  <summary style="cursor:pointer;color:var(--text2);font-size:0.8em">Recent trades (${ins.recent_trades.length})</summary>
+                  <div style="margin-top:6px">
+                    ${ins.recent_trades.map(t => `
+                      <div style="font-size:0.82em;padding:2px 0;color:var(--text2)">
+                        ${fmtDate(t.date)} &middot;
+                        <span class="${t.type === 'buy' ? 'buy-text' : t.type === 'sell' ? 'sell-text' : 'other-text'}">
+                          ${txLabel(t.code)}
+                        </span>
+                        ${fmtShares(t.shares)} shares
+                        ${t.price > 0 ? '@ $' + t.price.toFixed(2) : ''}
+                        ${t.value > 0 ? '(' + fmtMoney(t.value) + ')' : ''}
+                      </div>
+                    `).join('')}
+                  </div>
+                </details>
+              </td>
+            </tr>
+          ` : ''}
+        `).join('')}
+      </tbody>
+    </table>
+    </div>
+
+    <div style="margin-top:24px;text-align:center">
+      <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${d.cik}&type=4&dateb=&owner=include&count=40"
+         target="_blank" style="color:var(--accent);font-size:0.85em">
+        View all Form 4 filings on SEC EDGAR &rarr;
+      </a>
+    </div>
+  `;
+}
+
+function txLabel(code) {
+  const labels = {P:'Purchase',S:'Sale',A:'Grant',D:'Return',F:'Tax Withhold',M:'Option Exercise',C:'Conversion',G:'Gift',J:'Other'};
+  return labels[code] || code;
+}
+
+function showSearch() {
+  document.getElementById('search-view').style.display = '';
+  document.getElementById('detail-view').classList.remove('active');
+  history.pushState({}, '', location.pathname);
+}
+
+// No client-side MD5 needed — shard keys are pre-computed in the search index
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Event listeners
+document.getElementById('search-input').addEventListener('input', function(e) {
+  search(e.target.value.trim());
+});
+
+document.querySelectorAll('.search-toggle button').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.search-toggle button').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    searchMode = this.dataset.mode;
+    const q = document.getElementById('search-input').value.trim();
+    if (q) search(q);
+  });
+});
+
+// Hash navigation
+window.addEventListener('popstate', function(e) {
+  if (location.hash && location.hash.length > 1) {
+    loadDetailByTicker(location.hash.substring(1));
+  } else {
+    showSearch();
+  }
+});
+
+// Init
+loadMeta();
+if (location.hash && location.hash.length > 1) {
+  loadDetailByTicker(location.hash.substring(1));
+}
+</script>
+</body>
+</html>
